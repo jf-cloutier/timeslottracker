@@ -265,8 +265,20 @@ public class JiraTracker implements IssueTracker {
       throws IssueTrackerException {
       executorService.execute(() -> {
         try {
-          String urlString = MessageFormat.format(filterUrlTemplate,
-              getBaseJiraUrl(), filterId, getAuthorizedParams());
+			String urlString;
+
+			try {
+				Long.parseLong(filterId);
+				
+				urlString = MessageFormat.format(filterUrlTemplate,
+					getBaseJiraUrl(), filterId, getAuthorizedParams());
+			}
+			catch (final NumberFormatException e) {
+				// https://community.atlassian.com/t5/Jira-questions/Unable-to-fetch-XML-file-when-logged-out-from-JIRA-site/qaq-p/658398
+				urlString = getBaseJiraUrl() + 
+					"/sr/jira.issueviews:searchrequest-xml/temp/SearchRequest.xml?jql=" + java.net.URLEncoder.encode(filterId, "UTF-8");
+			}
+
           URL url = new URL(urlString);
           URLConnection connection = getUrlConnection(url);
           SAXParser saxParser = saxFactory.newSAXParser();
@@ -424,10 +436,15 @@ public class JiraTracker implements IssueTracker {
   }
 
   private String getAuthorizedParams() {
-    return "os_username=" + getLogin() + getPair("os_password", getPassword());
+	  if (version.equals(JIRA_VERSION_6)) {
+		return "auth_ignore";
+	  } else {
+		return "os_username=" + getLogin() + getPair("os_password", getPassword());
+	  }
   }
 
   private URLConnection getUrlConnection(URL url) throws IOException {
+	  LOG.finest("Accessing : " + url);
     URLConnection connection = url.openConnection();
     // preparing connection
     if (version.equals(JIRA_VERSION_6)) {
