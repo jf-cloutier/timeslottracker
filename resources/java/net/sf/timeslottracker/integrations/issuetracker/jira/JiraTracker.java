@@ -12,9 +12,11 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
+import java.text.DateFormat;
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,9 +24,14 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.swing.*;
+import javax.swing.JOptionPane;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
+
+import org.apache.commons.codec.binary.Base64;
+import org.xml.sax.Attributes;
+import org.xml.sax.SAXException;
+import org.xml.sax.helpers.DefaultHandler;
 
 import net.sf.timeslottracker.core.Action;
 import net.sf.timeslottracker.core.Configuration;
@@ -41,10 +48,6 @@ import net.sf.timeslottracker.integrations.issuetracker.IssueTracker;
 import net.sf.timeslottracker.integrations.issuetracker.IssueTrackerException;
 import net.sf.timeslottracker.integrations.issuetracker.IssueWorklogStatusType;
 import net.sf.timeslottracker.utils.StringUtils;
-import org.apache.commons.codec.binary.Base64;
-import org.xml.sax.Attributes;
-import org.xml.sax.SAXException;
-import org.xml.sax.helpers.DefaultHandler;
 
 /**
  * Implementation of Issue Tracker for Jira
@@ -131,7 +134,8 @@ public class JiraTracker implements IssueTracker {
     this.saxFactory = SAXParserFactory.newInstance();
   }
 
-  public void add(final TimeSlot timeSlot) throws IssueTrackerException {
+  @Override
+public void add(final TimeSlot timeSlot) throws IssueTrackerException {
     // getting issue key
     final String key = getIssueKey(timeSlot.getTask());
     if (key == null) {
@@ -194,7 +198,8 @@ public class JiraTracker implements IssueTracker {
     return null;
   }
 
-  public Issue getIssue(String key) throws IssueTrackerException {
+  @Override
+public Issue getIssue(String key) throws IssueTrackerException {
     try {
       key = prepareKey(key);
       if (key == null) {
@@ -269,13 +274,13 @@ public class JiraTracker implements IssueTracker {
 
 			try {
 				Long.parseLong(filterId);
-				
+
 				urlString = MessageFormat.format(filterUrlTemplate,
 					getBaseJiraUrl(), filterId, getAuthorizedParams());
 			}
 			catch (final NumberFormatException e) {
 				// https://community.atlassian.com/t5/Jira-questions/Unable-to-fetch-XML-file-when-logged-out-from-JIRA-site/qaq-p/658398
-				urlString = getBaseJiraUrl() + 
+				urlString = getBaseJiraUrl() +
 					"/sr/jira.issueviews:searchrequest-xml/temp/SearchRequest.xml?jql=" + java.net.URLEncoder.encode(filterId, "UTF-8");
 			}
 
@@ -346,11 +351,13 @@ public class JiraTracker implements IssueTracker {
       });
   }
 
-  public boolean isIssueTask(Task task) {
+  @Override
+public boolean isIssueTask(Task task) {
     return task != null && getIssueKey(task) != null;
   }
 
-  public boolean isValidKey(String key) {
+  @Override
+public boolean isValidKey(String key) {
     String preparedKey = prepareKey(key);
     return preparedKey != null && preparedKey.matches("[a-z,A-Z0-9]+-[0-9]+");
   }
@@ -378,8 +385,7 @@ public class JiraTracker implements IssueTracker {
         String jiraDuration = (duration / 1000 / 60) + "m";
         if (version.equals(JIRA_VERSION_6)) {
           writer.append("{").append(getPairSC("timeSpent", jiraDuration)).append(",")
-              .append(getPairSC("started", new SimpleDateFormat("yyyy-MM-dd'T'HH:MM:SS.sZ")
-                  .format(timeSlot.getStartDate()))).append(",")
+              .append(getPairSC("started", formatDate(timeSlot.getStartDate()))).append(",")
               .append(getPairSC("comment", timeSlot.getDescription()))
               .append("}");
         } else {
@@ -504,11 +510,22 @@ public class JiraTracker implements IssueTracker {
     return sessionPassword;
   }
 
+  private static final DateFormat TIMESTAMP = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+
+  private static String formatDate(final Date d)
+  {
+	  synchronized(TIMESTAMP)
+	  {
+		  return TIMESTAMP.format(d);
+	  }
+  }
+
   private void init() {
     // updates when timeslot changed
     this.timeSlotTracker.getLayoutManager()
         .addActionListener(new TimeSlotChangedListener() {
-          public void actionPerformed(Action action) {
+          @Override
+		public void actionPerformed(Action action) {
             Boolean enabled = timeSlotTracker.getConfiguration()
                 .getBoolean(Configuration.JIRA_ENABLED, false);
 
