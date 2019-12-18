@@ -195,7 +195,7 @@ class ToolBar extends JToolBar {
     }
 
     public void actionPerformed(ActionEvent e) {
-      layoutManager.getTimeSlotTracker().pauseTiming();
+      layoutManager.getTimeSlotTracker().pauseTiming(null);
       updateActionState(getSelectedTask());
     }
   }

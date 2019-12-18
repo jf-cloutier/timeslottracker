@@ -441,7 +441,7 @@ public class TreePopupMenu extends JPopupMenu {
     }
 
     public void actionPerformed(ActionEvent e) {
-      layoutManager.getTimeSlotTracker().pauseTiming();
+      layoutManager.getTimeSlotTracker().pauseTiming(null);
     }
   }
 

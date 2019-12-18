@@ -74,11 +74,10 @@ public class UserIdleDetector implements ActionListener {
       if (activeTimeSlot.getStartDate() != null) {
         // we're timing
         LOG.info("User inactive, pausing");
-        timeSlotTracker.pauseTiming();
         // adjust stop time to last user activity (really important for
         // when computer is suspended)
         long stoptime = System.currentTimeMillis() - idletime;
-        activeTimeSlot.setStopDate(new Date(stoptime));
+        timeSlotTracker.pauseTiming(new Date(stoptime));
         autopaused = true;
       }
     } else if (autopaused) {

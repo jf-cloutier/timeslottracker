@@ -858,7 +858,7 @@ public class Starter extends JFrame implements TimeSlotTracker {
     return startTiming(description, null);
   }
 
-  public void pauseTiming() {
+  public void pauseTiming(final Date pauseTime) {
     LOG.info("PauseTiming");
     // check if there is an active any other timeslot now
     TimeSlot previousTimeslot = getActiveTimeSlot();
@@ -869,7 +869,9 @@ public class Starter extends JFrame implements TimeSlotTracker {
     String description = previousTimeslot.getDescription();
 
     if (previousTimeslot.getStartDate() != null) {
-      previousTimeslot.setStopDate(new Date());
+      previousTimeslot.setStopDate(pauseTime == null ? new Date() : pauseTime);
+      
+      assert previousTimeslot.getStopDate().getTime() > previousTimeslot.getStartDate().getTime();
 
       TimeSlot timeslot = dataSource.createTimeSlot(null, null, null,
           description);
