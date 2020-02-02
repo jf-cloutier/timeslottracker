@@ -37,7 +37,7 @@ import net.sf.timeslottracker.utils.SwingUtils;
  * A simple timeslot edit dialog.
  * <p>
  * It is composed of several fields. One field for year, one for month, etc.
- * 
+ *
  * File version: $Revision: 1022 $, $Date: 2009-06-21 18:47:38 +0700 (Sun, 21 Jun
  * 2009) $ Last change: $Author: cnitsa $
  */
@@ -131,7 +131,8 @@ public class TimeSlotEditDialog extends JDialog implements EditingWindow {
 
     // listen if user double click on row to edit it
     table.addMouseListener(new MouseAdapter() {
-      public void mouseClicked(MouseEvent me) {
+      @Override
+	public void mouseClicked(MouseEvent me) {
         if (me.getClickCount() == 2) {
           edit();
         }
@@ -182,7 +183,7 @@ public class TimeSlotEditDialog extends JDialog implements EditingWindow {
 
   /**
    * Returns a new created or just saved timeslot
-   * 
+   *
    * @return new created or edited timeslot or null value if a user canceled
    *         dialog
    */
@@ -190,7 +191,8 @@ public class TimeSlotEditDialog extends JDialog implements EditingWindow {
     return timeslot;
   }
 
-  public void add() {
+  @Override
+public void add() {
     AttributeEditDialog dialog = new AttributeEditDialog(layoutManager, null,
         false, true, false);
     Attribute attribute = dialog.getAttribute();
@@ -203,7 +205,8 @@ public class TimeSlotEditDialog extends JDialog implements EditingWindow {
     }
   }
 
-  public void edit() {
+  @Override
+public void edit() {
     int rowNumber = table.getSelectedRow();
     if (rowNumber < 0) {
       return;
@@ -219,7 +222,8 @@ public class TimeSlotEditDialog extends JDialog implements EditingWindow {
     tableModel.fireTableRowsUpdated(rowNumber, rowNumber);
   }
 
-  public void remove() {
+  @Override
+public void remove() {
     int rowNumber = table.getSelectedRow();
     if (rowNumber < 0) {
       return;
@@ -233,11 +237,12 @@ public class TimeSlotEditDialog extends JDialog implements EditingWindow {
    * Action used when a user choose cancel/close button.
    * <p>
    * It simply reset task variable, so <code>getTimeslot</code> will return null
-   * 
+   *
    * @see #getTimeslot()
    */
   private class CancelAction implements ActionListener {
-    public void actionPerformed(ActionEvent e) {
+    @Override
+	public void actionPerformed(ActionEvent e) {
       timeslot = null;
       close();
     }
@@ -255,11 +260,12 @@ public class TimeSlotEditDialog extends JDialog implements EditingWindow {
    * timeslot; <br>
    * If this is a new timeslot, new TimeSlot record will be created to be
    * returned with <code>getTimeslot</code> method.
-   * 
+   *
    * @see #getTimeslot()
    */
   private class SaveAction implements ActionListener {
-    public void actionPerformed(ActionEvent e) {
+    @Override
+	public void actionPerformed(ActionEvent e) {
       try {
         String description = inputComboBox.getDescription();
         // check if a description isn't empty
@@ -291,6 +297,8 @@ public class TimeSlotEditDialog extends JDialog implements EditingWindow {
             layoutManager.getTimeSlotTracker().setActiveTimeSlot(null);
             layoutManager.fireTimeSlotChanged(timeslot);
             layoutManager.getTimeSlotTracker().fireTaskChanged(timeslot.getTask());
+          } else {
+        	  layoutManager.fireTimeSlotChanged(timeslot);
           }
         }
         close();

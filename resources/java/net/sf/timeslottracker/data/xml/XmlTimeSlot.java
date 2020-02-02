@@ -44,7 +44,7 @@ public class XmlTimeSlot implements TimeSlot {
    */
   XmlTimeSlot(Locale locale, Integer timeslotId, Date start, Date stop,
       String description) {
-    this.dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", locale);
+    this.dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ", locale);
     this.id = timeslotId;
 
     setStartDate(start);
@@ -129,18 +129,26 @@ public class XmlTimeSlot implements TimeSlot {
     if (start == null) {
       value += "(?)";
     } else {
-      value += dateFormat.format(start);
+      value += format(start);
     }
     value += " - ";
     if (stop == null) {
       value += "(?)";
     } else {
-      value += dateFormat.format(stop);
+      value += format(stop);
     }
     if (description != null) {
       value += ": " + description;
     }
     return value;
+  }
+  
+  private String format(final Date date)
+  {
+	  synchronized(dateFormat)
+	  {
+		  return dateFormat.format(date);
+	  }
   }
 
   public boolean canBeStarted() {

@@ -57,6 +57,11 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+        	<groupId>com.google.code.gson</groupId>
+        	<artifactId>gson</artifactId>
+        	<version>2.8.6</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -160,6 +165,41 @@
                     </dependency>
                 </dependencies>
             </plugin>
+      <plugin>
+        <!-- https://maven.apache.org/shared/maven-archiver/examples/classpath.html -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <addClasspath>true</addClasspath>
+			  <classpathPrefix>deps/</classpathPrefix>
+			  <mainClass>net.sf.timeslottracker.Starter</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+	    <!-- https://maven.apache.org/plugins/maven-dependency-plugin/usage.html -->
+		<!-- https://maven.apache.org/plugins/maven-dependency-plugin/examples/copying-project-dependencies.html -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.1.1</version>
+        <executions>
+          <execution>
+            <id>copy-dependencies</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <!-- configure the plugin here -->
+			  <outputDirectory>${project.build.directory}/deps</outputDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+			<!--
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -225,6 +265,7 @@
                     </execution>
                 </executions>
             </plugin>
+			-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
