@@ -1,10 +1,12 @@
 package net.sf.timeslottracker.integrations.issuetracker.jira;
 
-import static net.sf.timeslottracker.integrations.issuetracker.jira.JiraClient.JIRA_DEFAULT_VERSION;
+import static net.sf.timeslottracker.integrations.issuetracker.jira.JiraTracker.JIRA_VERSION_3;
+import static net.sf.timeslottracker.integrations.issuetracker.jira.JiraTracker.JIRA_VERSION_310;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
@@ -15,10 +17,17 @@ import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+
+import org.xml.sax.Attributes;
+import org.xml.sax.SAXException;
+import org.xml.sax.helpers.DefaultHandler;
 
 import net.sf.timeslottracker.core.Configuration;
 import net.sf.timeslottracker.core.TimeSlotTracker;
@@ -33,26 +42,120 @@ final class JiraClientImpl extends JiraClient
 {
 	private static final Logger LOG = Logger.getLogger(JiraClientV6.class.getName());
 
-	private final TimeSlotTracker timeSlotTracker;
+	private final String issueUrlTemplate;
+	private final String filterUrlTemplate;
 
-	private final ExecutorService executorService;
+	private final Pattern patternIssueId = Pattern.compile("<key id=\"([0-9]+)\">([\\d,\\s\u0021-\u0451]+)<");
 
+	private final Pattern patternSummary = Pattern.compile("<summary>([\\d,\\s\u0021-\u0451]+)<");
+
+	private final SAXParserFactory saxFactory;
+	
 	private final String version;
 
-	JiraClientImpl()
+	JiraClientImpl(final TimeSlotTracker tst, final String version)
 	{
-	    this.version = timeSlotTracker.getConfiguration().get(Configuration.JIRA_VERSION, JIRA_DEFAULT_VERSION);
+		super(tst);
+		
+		this.version = version;
+
+		this.issueUrlTemplate = tst.getConfiguration().get(Configuration.JIRA_ISSUE_URL_TEMPLATE,
+				"{0}/si/jira.issueviews:issue-xml/{1}/?{2}");
+
+		this.filterUrlTemplate = tst.getConfiguration().get(Configuration.JIRA_FILTER_URL_TEMPLATE,
+				"{0}/sr/jira.issueviews:searchrequest-xml/{1}/SearchRequest-{1}.xml?tempMax=1000&{2}");
+
+		this.saxFactory = SAXParserFactory.newInstance();
 	}
 
 	@Override
 	void getFilterIssues(final String filterId, final IssueHandler handler) throws IssueTrackerException
 	{
-		// TODO Auto-generated method stub
+		executorService.execute(() -> {
+			try {
+				String urlString;
 
+				try {
+					Long.parseLong(filterId);
+
+					urlString = MessageFormat.format(filterUrlTemplate, getBaseJiraUrl(), filterId,
+							getAuthorizedParams());
+				} catch (final NumberFormatException e) {
+					// https://community.atlassian.com/t5/Jira-questions/Unable-to-fetch-XML-file-when-logged-out-from-JIRA-site/qaq-p/658398
+					urlString = getBaseJiraUrl() + "/sr/jira.issueviews:searchrequest-xml/temp/SearchRequest.xml?jql="
+							+ java.net.URLEncoder.encode(filterId, "UTF-8");
+				}
+
+				URL url = new URL(urlString);
+				URLConnection connection = getUrlConnection(url);
+				SAXParser saxParser = saxFactory.newSAXParser();
+
+				try (InputStream inputStream = connection.getInputStream()) {
+					saxParser.parse(inputStream, new DefaultHandler() {
+						StringBuilder stringBuilder = null;
+						JiraIssue jiraIssue;
+
+						@Override
+						public void startElement(String uri, String localName, String qName, Attributes attributes)
+								throws SAXException {
+							if (handler.stopProcess()) {
+								throw new SAXException("Cancel xml processing");
+							}
+
+							switch (qName) {
+							case "summary":
+								stringBuilder = new StringBuilder();
+								break;
+							case "item":
+								jiraIssue = new JiraIssue();
+								break;
+							case "key":
+								jiraIssue.setId(attributes.getValue("id"));
+								stringBuilder = new StringBuilder();
+								break;
+							case "parent":
+								jiraIssue.setSubTask(true);
+								break;
+							}
+						}
+
+						@Override
+						public void characters(char[] ch, int start, int length) throws SAXException {
+							if (stringBuilder != null) {
+								stringBuilder.append(new String(ch, start, length));
+							}
+						}
+
+						@Override
+						public void endElement(String uri, String localName, String qName) throws SAXException {
+							switch (qName) {
+							case "item":
+								try {
+									handler.handle(jiraIssue);
+								} catch (IssueTrackerException e) {
+									LOG.throwing("", "", e);
+								}
+								jiraIssue = null;
+								break;
+							case "summary":
+								jiraIssue.setSummary(stringBuilder.toString());
+								break;
+							case "key":
+								jiraIssue.setKey(stringBuilder.toString());
+								break;
+							}
+							stringBuilder = null;
+						}
+					});
+				}
+			} catch (Exception e) {
+				LOG.throwing("", "", e);
+			}
+		});
 	}
 
 	@Override
-	public Issue getIssue(String key) throws IssueTrackerException
+	Issue getIssue(String key) throws IssueTrackerException
 	{
 		try
 		{
@@ -128,7 +231,7 @@ final class JiraClientImpl extends JiraClient
 		// analyze the existing worklog status and duration
 		final long duration;
 		final Attribute statusAttribute = getIssueWorkLogDuration(timeSlot);
-		if (statusAttribute != null && !version.equals(JIRA_VERSION_6))
+		if (statusAttribute != null)
 		{
 			int lastDuration = Integer.parseInt(String.valueOf(statusAttribute.get()));
 			if (timeSlot.getTime() <= lastDuration)
@@ -290,5 +393,22 @@ final class JiraClientImpl extends JiraClient
 	private String getContentType()
 	{
 		return "application/x-www-form-urlencoded";
+	}
+
+	private static String decodeString(String s)
+	{
+		final Pattern p = Pattern.compile("&#([\\d]+);");
+		final Matcher m = p.matcher(s);
+		final StringBuffer sb = new StringBuffer();
+		while (m.find()) {
+			m.appendReplacement(sb, new String(Character.toChars(Integer.parseInt(m.group(1)))));
+		}
+		m.appendTail(sb);
+		return sb.toString();
+	}
+
+	@Override
+	void validateFailed() {
+		// Not supported
 	}
 }

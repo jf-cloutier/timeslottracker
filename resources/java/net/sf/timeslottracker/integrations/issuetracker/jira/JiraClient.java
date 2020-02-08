@@ -1,12 +1,16 @@
 package net.sf.timeslottracker.integrations.issuetracker.jira;
 
-import static net.sf.timeslottracker.integrations.issuetracker.jira.JiraTracker.JIRA_VERSION_6;
-
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.swing.JOptionPane;
@@ -28,9 +32,7 @@ abstract class JiraClient
 {
 	private static final Logger LOG = Logger.getLogger(JiraClient.class.getName());
 
-	private static final DateFormat TIMESTAMP = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-
-	private static final String JIRA_DEFAULT_VERSION = JIRA_VERSION_6;
+	protected static final DateFormat TIMESTAMP = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
 
 	protected final TimeSlotTracker timeSlotTracker;
 
@@ -39,14 +41,40 @@ abstract class JiraClient
 	/**
 	 * JIRA password per application runtime session
 	 */
-	protected String sessionPassword = StringUtils.EMPTY;
+	private String sessionPassword = StringUtils.EMPTY;
+	
+	JiraClient(final TimeSlotTracker tst)
+	{
+		timeSlotTracker = tst;
+	    executorService = Executors.newSingleThreadExecutor();
+	    
+	    Runtime.getRuntime().addShutdownHook(new Thread() { @Override public void run() { executorService.shutdown(); } });
+	}
 
 	abstract void getFilterIssues(final String filterId, final IssueHandler handler)
 		      throws IssueTrackerException;
 
-	public abstract Issue getIssue(String key) throws IssueTrackerException;
+	abstract Issue getIssue(String key) throws IssueTrackerException;
 
 	abstract void upsertTimeslot(final TimeSlot timeSlot) throws IssueTrackerException;
+	
+	abstract void validateFailed();
+
+	URI getIssueUrl(Task task) throws IssueTrackerException {
+		String issueKey = getIssueKey(task);
+
+		if (issueKey == null) {
+			throw new IssueTrackerException(
+					"Given task \"" + task.getName() + "\" is not issue task (i.e. does not has issue key attribute)");
+		}
+
+		String uriStr = getBaseJiraUrl() + "/browse/" + issueKey;
+		try {
+			return new URI(uriStr);
+		} catch (URISyntaxException e) {
+			throw new IssueTrackerException("Error occured while creating uri: " + uriStr);
+		}
+	}
 
 	protected String getBaseJiraUrl()
 	{
@@ -85,6 +113,16 @@ abstract class JiraClient
 
 			return sessionPassword;
 		}
+	}
+
+	static String prepareKey(String key) 
+	{
+		if (key == null)
+		{
+			return null;
+		}
+
+		return key.trim().toUpperCase();
 	}
 
 	protected static String formatDate(final Date d)
@@ -136,6 +174,9 @@ abstract class JiraClient
 
 	protected String getIssueKey(Task task)
 	{
+		if (task == null)
+			return null;
+
 		for (Attribute attribute : task.getAttributes())
 		{
 			if (attribute.getAttributeType().equals(IssueKeyAttributeType.getInstance()))
@@ -145,5 +186,59 @@ abstract class JiraClient
 		}
 
 		return null;
+	}
+
+	protected long getTimeSpentInSeconds(final TimeSlot timeslot) {
+		final Attribute attr = getIssueWorkLogDuration(timeslot);
+
+		if (attr == null)
+			return -1L;
+
+		return Long.parseLong(String.valueOf(attr.get())) / 1000L;
+	}
+
+	void fixFailed() {
+		final List<Task> jiraTasks = getAllJiraTasks();
+
+		for (final Task jiraTask : jiraTasks) {
+			final Collection<TimeSlot> timeslots = jiraTask.getTimeslots();
+
+			if (timeslots != null)
+				for (final TimeSlot timeslot : timeslots) {
+					final long timeSpentInSeconds = getTimeSpentInSeconds(timeslot);
+
+					if (timeSpentInSeconds < 0L) {
+						try {
+							upsertTimeslot(timeslot);
+						} catch (IssueTrackerException e) {
+							LOG.log(Level.WARNING,
+									"Problem rescheduling Jira update for " + getIssueKey(timeslot.getTask()), e);
+						}
+					}
+				}
+		}
+	}
+
+	protected List<Task> getAllJiraTasks() {
+		final List<Task> jiraTasks = new ArrayList<>();
+
+		findAllJiraTasks(jiraTasks, timeSlotTracker.getDataSource().getRoot());
+
+		return jiraTasks;
+	}
+
+	private void findAllJiraTasks(final List<Task> jiraTasks, final Task task) {
+		final String key = getIssueKey(task);
+
+		if (key != null) {
+			jiraTasks.add(task);
+		}
+
+		final Collection<Task> children = task.getChildren();
+
+		if (children != null)
+			for (final Task child : children) {
+				findAllJiraTasks(jiraTasks, child);
+			}
 	}
 }
