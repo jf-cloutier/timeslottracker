@@ -42,12 +42,12 @@ abstract class JiraClient
 	 * JIRA password per application runtime session
 	 */
 	private String sessionPassword = StringUtils.EMPTY;
-	
+
 	JiraClient(final TimeSlotTracker tst)
 	{
 		timeSlotTracker = tst;
 	    executorService = Executors.newSingleThreadExecutor();
-	    
+
 	    Runtime.getRuntime().addShutdownHook(new Thread() { @Override public void run() { executorService.shutdown(); } });
 	}
 
@@ -57,7 +57,7 @@ abstract class JiraClient
 	abstract Issue getIssue(String key) throws IssueTrackerException;
 
 	abstract void upsertTimeslot(final TimeSlot timeSlot) throws IssueTrackerException;
-	
+
 	abstract void validateFailed();
 
 	URI getIssueUrl(Task task) throws IssueTrackerException {
@@ -115,7 +115,7 @@ abstract class JiraClient
 		}
 	}
 
-	static String prepareKey(String key) 
+	static String prepareKey(String key)
 	{
 		if (key == null)
 		{

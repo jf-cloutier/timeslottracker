@@ -33,14 +33,14 @@ public class JiraTracker implements IssueTracker {
 	private static final Logger LOG = Logger.getLogger(JiraTracker.class.getName());
 
 	private final TimeSlotTracker timeSlotTracker;
-	
+
 	private final JiraClient jiraClient;
 
 	public JiraTracker(final TimeSlotTracker timeSlotTracker) {
 		this.timeSlotTracker = timeSlotTracker;
 
 		final String version = timeSlotTracker.getConfiguration().get(Configuration.JIRA_VERSION, JIRA_DEFAULT_VERSION);
-		
+
 		if (version.equals(JIRA_VERSION_6))
 			jiraClient = new JiraClientV6(timeSlotTracker);
 		else

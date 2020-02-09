@@ -50,13 +50,13 @@ final class JiraClientImpl extends JiraClient
 	private final Pattern patternSummary = Pattern.compile("<summary>([\\d,\\s\u0021-\u0451]+)<");
 
 	private final SAXParserFactory saxFactory;
-	
+
 	private final String version;
 
 	JiraClientImpl(final TimeSlotTracker tst, final String version)
 	{
 		super(tst);
-		
+
 		this.version = version;
 
 		this.issueUrlTemplate = tst.getConfiguration().get(Configuration.JIRA_ISSUE_URL_TEMPLATE,
