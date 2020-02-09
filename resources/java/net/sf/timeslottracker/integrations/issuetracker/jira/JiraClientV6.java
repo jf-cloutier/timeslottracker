@@ -12,9 +12,9 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -45,7 +45,7 @@ import net.sf.timeslottracker.integrations.issuetracker.IssueWorklogStatusType;
 final class JiraClientV6 extends JiraClient
 {
 	private static final Logger LOG = Logger.getLogger(JiraClientV6.class.getName());
-	
+
 	JiraClientV6(final TimeSlotTracker tst)
 	{
 		super(tst);
@@ -57,7 +57,7 @@ final class JiraClientV6 extends JiraClient
 		try
 		{
 			final String jql;
-	
+
 			if (filter.matches("^(?:-1|\\d+)$"))
 			{
 				jql = fetchJql(filter);
@@ -66,47 +66,47 @@ final class JiraClientV6 extends JiraClient
 			{
 				jql = filter;
 			}
-	
+
 			final URL url = new URL(getBaseJiraUrl() + "/rest/api/2/search");
 			final HttpURLConnection conn = getUrlConnection(url);
-	
+
 			conn.setRequestMethod("POST");
 			conn.setDoInput(true);
 			conn.setDoOutput(true);
 			conn.setUseCaches(false);
 			conn.setRequestProperty("Content-Type", getContentType());
-	
+
 			// sending data
 			try (final OutputStreamWriter writer = new OutputStreamWriter(conn.getOutputStream(), StandardCharsets.UTF_8))
 			{
 				final JsonArray jsonArr = new JsonArray();
-	
+
 				jsonArr.add("id");
 				jsonArr.add("key");
 				jsonArr.add("summary");
-	
+
 				final JsonObject jsonObj = new JsonObject();
-	
+
 				jsonObj.addProperty("jql", jql);
 				jsonObj.addProperty("startAt", 0);
 				jsonObj.addProperty("maxResults", 100);
 				jsonObj.add("fields", jsonArr);
-	
+
 				writer.write(jsonObj.toString());
 			}
-	
+
 			try (final Reader reader = new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))
 			{
 				final JsonObject resp = JsonParser.parseReader(reader).getAsJsonObject();
 				final JsonElement issues = resp.get("issues");
-		
+
 				if (issues == null || !issues.isJsonArray())
 					return;
-		
+
 				for (final JsonElement item : issues.getAsJsonArray())
 				{
 					final JsonObject issue = item.getAsJsonObject();
-		
+
 					handler.handle(createIssue(issue));
 				}
 			}
@@ -263,7 +263,7 @@ final class JiraClientV6 extends JiraClient
 	{
 		return "application/json";
 	}
-	
+
 	private String fetchJql(final String filterId) throws IOException
 	{
 		final URL url = new URL(getBaseJiraUrl() + "/rest/api/2/filter/" + filterId);
@@ -276,7 +276,7 @@ final class JiraClientV6 extends JiraClient
 		try (final Reader reader = new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))
 		{
 			final JsonObject resp = JsonParser.parseReader(reader).getAsJsonObject();
-			
+
 			return resp.get("jql").getAsString();
 		}
 	}
@@ -284,7 +284,7 @@ final class JiraClientV6 extends JiraClient
 	@Override
 	void validateFailed() {
 		final List<Task> jiraTasks = getAllJiraTasks();
-		final Map<String, UnsavedWorkLog> unsaved = new HashMap<>();
+		final Map<String, UnsavedWorkLog> unsaved = new TreeMap<>();
 
 		for (final Task jiraTask : jiraTasks) {
 			final List<WorkLog> worklogs = getWorklogs(jiraTask);
@@ -295,7 +295,31 @@ final class JiraClientV6 extends JiraClient
 			}
 		}
 
-		LOG.warning(unsaved.size() + " issues are missing timeslots");
+		if (unsaved.isEmpty())
+			return;
+
+		final StringBuilder sb = new StringBuilder();
+
+		sb.append(unsaved.size()).append(" issues are missing timeslots");
+
+		for (final Map.Entry<String, UnsavedWorkLog> cur : unsaved.entrySet())
+		{
+			final List<TimeSlot> timeslots = cur.getValue().geTimeSlots();
+
+			sb.append("\r\n\t").append(cur.getKey()).append(" is missing ").append(timeslots.size());
+			sb.append(timeslots.size() == 1 ? " timeslot" : " timeslots");
+
+			for (final TimeSlot ts : timeslots)
+			{
+				final long elapsed = (ts.getStopDate().getTime() - ts.getStartDate().getTime()) / 60000L;
+
+				sb.append("\r\n\t\t").append(ts.getStartDate());
+				sb.append(" ").append(elapsed).append(" minutes -- ");
+				sb.append(ts.getDescription());
+			}
+		}
+
+		LOG.warning(sb.toString());
 	}
 
 	private List<WorkLog> getWorklogs(final Task jiraTask) {
@@ -304,7 +328,7 @@ final class JiraClientV6 extends JiraClient
 
 		try {
 			final URL url = new URL(getBaseJiraUrl() + getAddWorklogPath(issueKey));
-			final HttpURLConnection httpConnection = (HttpURLConnection) getUrlConnection(url);
+			final HttpURLConnection httpConnection = getUrlConnection(url);
 
 			httpConnection.setRequestMethod("GET");
 			httpConnection.setDoInput(true);
@@ -428,23 +452,18 @@ final class JiraClientV6 extends JiraClient
 	}
 
 	private static final class WorkLog {
-		private final String id;
 		private final Date start;
 		private final long timeSpentSeconds;
 
 		private WorkLog(final String id, final Date start, final long duration) {
-			this.id = id;
 			this.start = start;
 			this.timeSpentSeconds = duration;
 		}
 	}
 
 	private static final class UnsavedWorkLog {
-		private final Task task;
 		private final List<TimeSlot> timeSlots;
-
 		UnsavedWorkLog(final Task task, final List<TimeSlot> unsavedWorkLogs) {
-			this.task = task;
 			this.timeSlots = unsavedWorkLogs;
 		}
 
