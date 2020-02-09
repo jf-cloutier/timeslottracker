@@ -290,6 +290,12 @@ final class JiraClientImpl extends JiraClient
 		executorService.execute(searchIssueTask);
 	}
 
+	@Override
+	void delete(TimeSlot timeSlot) throws IssueTrackerException
+	{
+		// Not supported
+	}
+
 	private void addWorklog(
 			final TimeSlot timeSlot,
 			final String key,

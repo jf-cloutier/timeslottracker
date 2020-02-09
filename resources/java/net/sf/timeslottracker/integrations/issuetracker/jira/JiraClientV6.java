@@ -148,6 +148,69 @@ final class JiraClientV6 extends JiraClient
 		executorService.execute(updateWorklogTask);
 	}
 
+	@Override
+	void delete(TimeSlot timeSlot) throws IssueTrackerException
+	{
+		// On second thought, I've decided to not implement the delete functionality as it is too risky.
+		// The first problem that I encountered is that parent task has been removed from the TimeSlot.
+		// As such, it is not possible to find the Jira issue related to the worklog. To solve this
+		// problem, we would need to store the Jira issue ID on the timeslot as well. Not pretty...
+		// But even if we were to do that, this feature is too risky. Indeed, it is possible for the
+		// user to delete the task, which in turns also calls delete the timeslots. What is the user
+		// case behind this? The user doing some "clean up", i.e. removing completed Jira issues from
+		// his sight? Isn't that what the hide feature about?
+		// In any case, deleting stuff from Jira is probably too dangerous in the first place, so we
+		// will leave it be for now.
+
+//		final Attribute worklogId = getAttribute(timeSlot, IssueWorklogIdType.getInstance());
+//
+//		if (worklogId == null)
+//			return;
+//
+//		final String issueKey = "";
+//
+//		final StringBuilder sb = new StringBuilder();
+//
+//		sb.append(getBaseJiraUrl()).append(getAddWorklogPath(issueKey));
+//		sb.append('/').append(worklogId.get()).append("?adjustEstimate=auto");
+//
+//		try
+//		{
+//			final URL url = new URL(sb.toString());
+//			final HttpURLConnection conn = getUrlConnection(url);
+//
+//			conn.setRequestMethod("DELETE");
+//			conn.setDoInput(true);
+//			conn.setDoOutput(false);
+//			conn.setUseCaches(false);
+//			conn.setRequestProperty("Content-Type", getContentType());
+//
+//			try (final Reader reader = new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))
+//			{
+//				final JsonObject jsonObj = JsonParser.parseReader(reader).getAsJsonObject();
+//				final String id = jsonObj.get("id").getAsString();
+//
+//				getOrCreate(timeSlot, IssueWorklogIdType.getInstance()).set(id);
+//
+//				LOG.finest("jira result: " + jsonObj.toString());
+//			}
+//		}
+//		catch (final Exception e)
+//		{
+//			final String msg = String.format(
+//					  "Unable to delete worklog {0} from issue {1}.\n\r"
+//					+ "\tDate: {2}\n\r"
+//					+ "\tDuration: {3}\n\r"
+//					+ "\tDescription: {4}",
+//					worklogId.get(),
+//					issueKey,
+//					timeSlot.getStartDate(),
+//					(timeSlot.getStopDate().getTime() - timeSlot.getStartDate().getTime()) / 60_000L,
+//					timeSlot.getDescription());
+//			LOG.log(Level.WARNING, msg, e);
+//		}
+	}
+
 	private void addWorklog(final TimeSlot timeSlot, final String key) throws IOException
 	{
 		final StringBuilder sb = new StringBuilder();

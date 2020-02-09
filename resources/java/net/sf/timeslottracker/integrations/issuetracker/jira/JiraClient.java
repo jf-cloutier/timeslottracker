@@ -58,6 +58,8 @@ abstract class JiraClient
 
 	abstract void upsertTimeslot(final TimeSlot timeSlot) throws IssueTrackerException;
 
+	abstract void delete(final TimeSlot timeSlot) throws IssueTrackerException;
+
 	abstract void validateFailed();
 
 	URI getIssueUrl(Task task) throws IssueTrackerException {

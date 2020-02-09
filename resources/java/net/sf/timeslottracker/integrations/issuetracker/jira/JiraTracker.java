@@ -80,6 +80,15 @@ public class JiraTracker implements IssueTracker {
 		return preparedKey != null && preparedKey.matches("[a-z,A-Z0-9]+-[0-9]+");
 	}
 
+	private void delete(final TimeSlot timeSlot) throws IssueTrackerException
+	{
+		// Note: we also get here if the user has manually added a new timeslot
+		//		and provided a start & stop all at once.
+		//		The only way to distinguish if there this is a delete operation
+		//		is if our attributes are attached to the timeslot.
+		jiraClient.delete(timeSlot);
+	}
+
 	private void init() {
 		jiraClient.fixFailed();
 
@@ -121,6 +130,11 @@ public class JiraTracker implements IssueTracker {
 
 				// removed timeSlot
 				if (timeSlot.getTask() == null) {
+					try {
+						delete(timeSlot);
+					} catch (IssueTrackerException e) {
+						LOG.warning(e.getMessage());
+					}
 					return;
 				}
 
